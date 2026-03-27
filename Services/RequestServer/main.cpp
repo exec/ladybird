@@ -26,6 +26,47 @@ OwnPtr<ResourceSubstitutionMap> g_resource_substitution_map;
 
 }
 
+#ifdef AK_OS_MACOS
+#    include <Security/Security.h>
+#    include <openssl/ssl.h>
+#    include <openssl/x509.h>
+
+static Vector<X509*> s_system_certificates;
+
+static void load_system_certificates()
+{
+    CFArrayRef certs = nullptr;
+    if (SecTrustCopyAnchorCertificates(&certs) != errSecSuccess || !certs)
+        return;
+
+    auto count = CFArrayGetCount(certs);
+
+    for (CFIndex i = 0; i < count; ++i) {
+        auto* cert = static_cast<SecCertificateRef>(const_cast<void*>(CFArrayGetValueAtIndex(certs, i)));
+        auto* der_data = SecCertificateCopyData(cert);
+        if (!der_data)
+            continue;
+
+        auto const* der_ptr = CFDataGetBytePtr(der_data);
+        auto* x509 = d2i_X509(nullptr, &der_ptr, CFDataGetLength(der_data));
+        CFRelease(der_data);
+
+        if (x509)
+            s_system_certificates.append(x509);
+    }
+
+    CFRelease(certs);
+}
+
+static int inject_system_certificates(void*, void* ssl_ctx, void*)
+{
+    auto* store = SSL_CTX_get_cert_store(static_cast<SSL_CTX*>(ssl_ctx));
+    for (auto* cert : s_system_certificates)
+        X509_STORE_add_cert(store, cert);
+    return 0;
+}
+#endif
+
 #ifndef AK_OS_WINDOWS
 static void handle_signal(int signal)
 {
@@ -58,6 +99,13 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
     // FIXME: Update RequestServer to support multiple custom root certificates.
     if (!certificates.is_empty())
         RequestServer::set_default_certificate_path(certificates.first());
+#ifdef AK_OS_MACOS
+    if (RequestServer::default_certificate_path().is_empty()) {
+        load_system_certificates();
+        if (!s_system_certificates.is_empty())
+            RequestServer::set_ssl_ctx_setup_callback(inject_system_certificates);
+    }
+#endif
 
     if (!resource_map_path.is_empty()) {
         auto map = RequestServer::ResourceSubstitutionMap::load_from_file(resource_map_path);

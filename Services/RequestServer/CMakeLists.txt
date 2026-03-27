@@ -45,6 +45,10 @@ if (WIN32)
     lagom_windows_bin(RequestServer CONSOLE)
 endif()
 
+if (APPLE)
+    target_link_libraries(RequestServer PRIVATE "-framework Security")
+endif()
+
 if (${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
     # Solaris has socket and networking related functions in two extra libraries
     target_link_libraries(requestserverservice PUBLIC nsl socket)

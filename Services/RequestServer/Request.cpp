@@ -526,6 +526,9 @@ void Request::handle_fetch_state()
     if (auto const& path = default_certificate_path(); !path.is_empty())
         set_option(CURLOPT_CAINFO, path.characters());
 
+    if (auto callback = ssl_ctx_setup_callback())
+        set_option(CURLOPT_SSL_CTX_FUNCTION, callback);
+
     set_option(CURLOPT_ACCEPT_ENCODING, ""); // Empty string lets curl define the accepted encodings.
     set_option(CURLOPT_URL, m_url.to_byte_string().characters());
     set_option(CURLOPT_PORT, m_url.port_or_default());
