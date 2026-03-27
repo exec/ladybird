@@ -198,4 +198,25 @@ TEST_CASE(location_to_search_or_url)
     expect_search_url_equals_sanitized_url("mailto:hello@example.com"sv); // For now, unsupported scheme.
     // FIXME: Add support for opening mailto: scheme (below). Firefox opens mailto: locations
     // expect_url_equals_sanitized_url("mailto:hello@example.com"sv, "mailto:hello@example.com"sv);
+
+    // Bare IP addresses on private/loopback networks should default to http://, not https://.
+    expect_url_equals_sanitized_url("http://127.0.0.1/"sv, "127.0.0.1"sv);
+    expect_url_equals_sanitized_url("http://127.0.0.1:8080/"sv, "127.0.0.1:8080"sv);
+    expect_url_equals_sanitized_url("http://10.0.0.1/"sv, "10.0.0.1"sv);
+    expect_url_equals_sanitized_url("http://10.0.0.1:3000/"sv, "10.0.0.1:3000"sv);
+    expect_url_equals_sanitized_url("http://172.16.0.1/"sv, "172.16.0.1"sv);
+    expect_url_equals_sanitized_url("http://172.31.255.255/"sv, "172.31.255.255"sv);
+    expect_url_equals_sanitized_url("http://192.168.1.1/"sv, "192.168.1.1"sv);
+    expect_url_equals_sanitized_url("http://192.168.0.100:8080/"sv, "192.168.0.100:8080"sv);
+    expect_url_equals_sanitized_url("http://169.254.1.1/"sv, "169.254.1.1"sv);
+    expect_url_equals_sanitized_url("http://[::1]/"sv, "[::1]"sv);
+
+    // Public IP addresses should still get https://.
+    expect_url_equals_sanitized_url("https://8.8.8.8/"sv, "8.8.8.8"sv);
+    expect_url_equals_sanitized_url("https://172.32.0.1/"sv, "172.32.0.1"sv);  // Just outside 172.16.0.0/12.
+    expect_url_equals_sanitized_url("https://172.15.255.255/"sv, "172.15.255.255"sv);  // Just below 172.16.0.0/12.
+
+    // Explicit scheme should be respected regardless of IP address.
+    expect_url_equals_sanitized_url("https://192.168.1.1/"sv, "https://192.168.1.1"sv);
+    expect_url_equals_sanitized_url("http://8.8.8.8/"sv, "http://8.8.8.8"sv);
 }

@@ -6,13 +6,67 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/IPv4Address.h>
+#include <AK/IPv6Address.h>
 #include <AK/String.h>
 #include <LibFileSystem/FileSystem.h>
+#include <LibURL/Host.h>
 #include <LibURL/Parser.h>
 #include <LibURL/PublicSuffixData.h>
 #include <LibWebView/URL.h>
 
 namespace WebView {
+
+static bool is_ipv4_private_or_loopback(u8 first, u8 second)
+{
+    // 127.0.0.0/8 (loopback)
+    if (first == 127)
+        return true;
+    // 10.0.0.0/8 (private)
+    if (first == 10)
+        return true;
+    // 172.16.0.0/12 (private)
+    if (first == 172 && second >= 16 && second <= 31)
+        return true;
+    // 192.168.0.0/16 (private)
+    if (first == 192 && second == 168)
+        return true;
+    // 169.254.0.0/16 (link-local)
+    if (first == 169 && second == 254)
+        return true;
+    return false;
+}
+
+static bool is_host_private_or_loopback(URL::Host const& host)
+{
+    if (host.has<IPv4Address>()) {
+        // Use host.serialize() to get the canonical dotted-decimal form,
+        // then parse it back. This avoids byte-order issues with the internal
+        // IPv4Address representation used by the URL parser.
+        if (auto parsed = IPv4Address::from_string(host.serialize()); parsed.has_value())
+            return is_ipv4_private_or_loopback((*parsed)[0], (*parsed)[1]);
+        return false;
+    }
+
+    if (host.has<IPv6Address>()) {
+        auto const& ipv6 = host.get<IPv6Address>();
+
+        // ::1 (loopback)
+        if (ipv6[0] == 0 && ipv6[1] == 0 && ipv6[2] == 0 && ipv6[3] == 0
+            && ipv6[4] == 0 && ipv6[5] == 0 && ipv6[6] == 0 && ipv6[7] == 1)
+            return true;
+
+        return false;
+    }
+
+    // The URL parser may store IP addresses as domain strings.
+    if (host.has<String>()) {
+        if (auto parsed = IPv4Address::from_string(host.get<String>()); parsed.has_value())
+            return is_ipv4_private_or_loopback((*parsed)[0], (*parsed)[1]);
+    }
+
+    return false;
+}
 
 Optional<URL::URL> sanitize_url(StringView location, Optional<SearchEngine> const& search_engine, AppendTLD append_tld)
 {
@@ -42,6 +96,16 @@ Optional<URL::URL> sanitize_url(StringView location, Optional<SearchEngine> cons
             return search_url_or_error();
 
         https_scheme_was_guessed = true;
+    }
+
+    // For private/loopback IP addresses, use http:// instead of https:// since
+    // these addresses typically don't have TLS certificates.
+    if (https_scheme_was_guessed) {
+        if (auto const& host = url->host(); host.has_value() && is_host_private_or_loopback(*host)) {
+            url = URL::create_with_url_or_path(ByteString::formatted("http://{}", location));
+            if (!url.has_value())
+                return search_url_or_error();
+        }
     }
 
     // FIXME: Add support for other schemes, e.g. "mailto:". Firefox and Chrome open mailto: locations.
