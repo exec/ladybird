@@ -229,6 +229,11 @@
     [current_window performClose:self];
 }
 
+- (void)reopenLastClosedTab:(id)sender
+{
+    WebView::Application::the().reopen_last_closed_tab();
+}
+
 - (void)clearHistory:(id)sender
 {
     for (TabController* controller in self.managed_tabs) {
@@ -273,6 +278,9 @@
     [submenu addItem:[[NSMenuItem alloc] initWithTitle:@"Close Tab"
                                                 action:@selector(closeCurrentTab:)
                                          keyEquivalent:@"w"]];
+    [submenu addItem:[[NSMenuItem alloc] initWithTitle:@"Reopen Closed Tab"
+                                                action:@selector(reopenLastClosedTab:)
+                                         keyEquivalent:@"T"]];
     [submenu addItem:[NSMenuItem separatorItem]];
 
     [submenu addItem:[[NSMenuItem alloc] initWithTitle:@"Open Location"
@@ -479,6 +487,10 @@
 
     if (action == @selector(closeCurrentTab:)) {
         return [[NSApp keyWindow] isKindOfClass:[Tab class]];
+    }
+
+    if (action == @selector(reopenLastClosedTab:)) {
+        return WebView::Application::the().has_recently_closed_tabs();
     }
 
     return YES;

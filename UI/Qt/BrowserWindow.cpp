@@ -222,6 +222,14 @@ BrowserWindow::BrowserWindow(Vector<URL::URL> const& initial_urls, IsPopupWindow
     m_hamburger_menu->addAction(close_current_tab_action);
     file_menu->addAction(close_current_tab_action);
 
+    auto* reopen_closed_tab_action = new QAction("&Reopen Closed Tab", this);
+    reopen_closed_tab_action->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T));
+    QObject::connect(reopen_closed_tab_action, &QAction::triggered, this, [] {
+        WebView::Application::the().reopen_last_closed_tab();
+    });
+    m_hamburger_menu->addAction(reopen_closed_tab_action);
+    file_menu->addAction(reopen_closed_tab_action);
+
     auto* open_file_action = new QAction("&Open File...", this);
     open_file_action->setIcon(load_icon_from_uri("resource://icons/16x16/filetype-folder-open.png"sv));
     open_file_action->setShortcut(QKeySequence(QKeySequence::StandardKey::Open));
@@ -513,6 +521,10 @@ void BrowserWindow::activate_tab(int index)
 void BrowserWindow::definitely_close_tab(int index)
 {
     auto* tab = m_tabs_container->tab(index);
+
+    auto& url = tab->view().url();
+    WebView::Application::the().push_recently_closed_url(url);
+
     m_tabs_container->remove_tab(index);
     tab->deleteLater();
 

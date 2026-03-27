@@ -475,6 +475,9 @@ static NSString* const TOOLBAR_TAB_OVERVIEW_IDENTIFIER = @"ToolbarTabOverviewIde
 
 - (void)windowWillClose:(NSNotification*)notification
 {
+    auto& url = [[[self tab] web_view] view].url();
+    WebView::Application::the().push_recently_closed_url(url);
+
     auto* delegate = (ApplicationDelegate*)[NSApp delegate];
     [delegate removeTab:self];
 }

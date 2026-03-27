@@ -355,6 +355,27 @@ void Application::open_url_in_new_tab(URL::URL const& url, Web::HTML::ActivateTa
         view->load(url);
 }
 
+void Application::push_recently_closed_url(URL::URL url)
+{
+    if (url == URL::about_blank())
+        return;
+
+    static constexpr size_t max_recently_closed = 20;
+    if (m_recently_closed_tab_urls.size() >= max_recently_closed)
+        m_recently_closed_tab_urls.remove(0);
+
+    m_recently_closed_tab_urls.append(move(url));
+}
+
+void Application::reopen_last_closed_tab()
+{
+    if (m_recently_closed_tab_urls.is_empty())
+        return;
+
+    auto url = m_recently_closed_tab_urls.take_last();
+    open_url_in_new_tab(url, Web::HTML::ActivateTab::Yes);
+}
+
 static ErrorOr<NonnullRefPtr<WebContentClient>> create_web_content_client(Optional<ViewImplementation&> view)
 {
     auto request_server_handle = TRY(connect_new_request_server_client());

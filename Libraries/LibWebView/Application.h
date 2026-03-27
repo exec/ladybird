@@ -82,6 +82,10 @@ public:
     virtual Optional<ViewImplementation&> open_blank_new_tab(Web::HTML::ActivateTab) const { return {}; }
     void open_url_in_new_tab(URL::URL const&, Web::HTML::ActivateTab) const;
 
+    void push_recently_closed_url(URL::URL);
+    void reopen_last_closed_tab();
+    bool has_recently_closed_tabs() const { return !m_recently_closed_tab_urls.is_empty(); }
+
     void add_child_process(Process&&);
 
     // FIXME: Should these methods be part of Application, instead of deferring to ProcessManager?
@@ -292,6 +296,9 @@ private:
     Optional<Web::Clipboard::SystemClipboardRepresentation> m_clipboard;
 
     FileDownloader m_file_downloader;
+
+    static constexpr size_t max_recently_closed_tab_urls = 20;
+    Vector<URL::URL> m_recently_closed_tab_urls;
 
 #if defined(AK_OS_MACOS)
     OwnPtr<IPC::MachBootstrapListener> m_mach_port_server;
