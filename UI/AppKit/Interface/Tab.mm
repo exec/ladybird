@@ -112,6 +112,24 @@ static constexpr CGFloat const WINDOW_HEIGHT = 800;
     return self;
 }
 
+#pragma mark - NSWindow
+
+- (void)sendEvent:(NSEvent*)event
+{
+    if (event.type == NSEventTypeOtherMouseUp && event.buttonNumber == 2) {
+        auto point_in_window = event.locationInWindow;
+        auto content_rect = [self contentLayoutRect];
+
+        // A click above the content rect is in the titlebar/tab bar area.
+        if (point_in_window.y > NSMaxY(content_rect)) {
+            [self closeTabUnderMouse:point_in_window];
+            return;
+        }
+    }
+
+    [super sendEvent:event];
+}
+
 #pragma mark - Public methods
 
 - (void)find:(id)sender
@@ -139,6 +157,71 @@ static constexpr CGFloat const WINDOW_HEIGHT = 800;
 - (TabController*)tabController
 {
     return (TabController*)[self windowController];
+}
+
+- (void)closeTabUnderMouse:(NSPoint)point_in_window
+{
+    auto* tab_group = [self tabGroup];
+
+    if (!tab_group)
+        return;
+
+    auto* group_windows = [tab_group windows];
+
+    if ([group_windows count] == 0)
+        return;
+
+    // Use hitTest: on the window's theme frame to find the view under the cursor.
+    // Tab bar items in macOS native tabbing are subviews of the theme frame.
+    auto* theme_frame = self.contentView.superview;
+    auto point_in_theme_frame = [theme_frame convertPoint:point_in_window fromView:nil];
+    auto* hit_view = [theme_frame hitTest:point_in_theme_frame];
+
+    if (!hit_view || hit_view == theme_frame)
+        return;
+
+    // Walk up the view hierarchy to find a tab button. macOS uses private
+    // NSTabBarItemView (or similar) classes for tab items. We identify them by
+    // checking if any ancestor of the hit view has an accessibilityRole of
+    // "AXRadioButton", which is how macOS exposes tab bar items to accessibility.
+    for (NSView* view = hit_view; view && view != theme_frame; view = view.superview) {
+        auto* role = [view accessibilityRole];
+
+        if (!role)
+            continue;
+
+        if (![role isEqualToString:NSAccessibilityRadioButtonRole])
+            continue;
+
+        // Found a tab bar item. Determine its index among sibling tab items
+        // by iterating the parent's children. The tab bar items appear in the
+        // same left-to-right order as tabGroup.windows.
+        auto* parent = view.superview;
+
+        if (!parent)
+            break;
+
+        NSUInteger tab_index = 0;
+
+        for (NSView* sibling in parent.subviews) {
+            auto* sibling_role = [sibling accessibilityRole];
+
+            if (![sibling_role isEqualToString:NSAccessibilityRadioButtonRole])
+                continue;
+
+            if (sibling == view) {
+                if (tab_index < [group_windows count]) {
+                    auto* target_window = [group_windows objectAtIndex:tab_index];
+                    [target_window performClose:self];
+                }
+                return;
+            }
+
+            tab_index++;
+        }
+
+        break;
+    }
 }
 
 - (void)updateTabTitleAndFavicon
