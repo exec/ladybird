@@ -113,7 +113,14 @@ WebIDL::ExceptionOr<GC::Ref<ImageData>> ImageData::initialize(JS::Realm& realm, 
     }());
 
     // AD-HOC: Create the bitmap backed by the Uint8ClampedArray.
-    auto bitmap = TRY_OR_THROW_OOM(realm.vm(), create_bitmap_backed_by_uint8_clamped_array(pixels_per_row, rows, *data));
+    auto bitmap_or_error = create_bitmap_backed_by_uint8_clamped_array(pixels_per_row, rows, *data);
+    if (bitmap_or_error.is_error()) {
+        if (bitmap_or_error.error().code() == EOVERFLOW)
+            return WebIDL::IndexSizeError::create(realm, "The requested image size exceeds the supported range."_utf16);
+        auto& vm = realm.vm();
+        return vm.throw_completion<JS::InternalError>(vm.error_message(JS::VM::ErrorMessage::OutOfMemory));
+    }
+    auto bitmap = bitmap_or_error.release_value();
 
     // 4. Initialize the width attribute of imageData to pixelsPerRow.
     // 5. Initialize the height attribute of imageData to rows.
@@ -227,7 +234,13 @@ WebIDL::ExceptionOr<void> ImageData::deserialization_steps(HTML::TransferDataDec
     // FIXME: 5. Initialize value's pixelFormat attribute to serialized.[[PixelFormat]].
 
     // AD-HOC: Create the bitmap backed by the Uint8ClampedArray.
-    m_bitmap = TRY_OR_THROW_OOM(vm, create_bitmap_backed_by_uint8_clamped_array(width, height, *m_data));
+    auto bitmap_or_error = create_bitmap_backed_by_uint8_clamped_array(width, height, *m_data);
+    if (bitmap_or_error.is_error()) {
+        if (bitmap_or_error.error().code() == EOVERFLOW)
+            return WebIDL::DataCloneError::create(realm, "The serialized image size exceeds the supported range."_utf16);
+        return vm.throw_completion<JS::InternalError>(vm.error_message(JS::VM::ErrorMessage::OutOfMemory));
+    }
+    m_bitmap = bitmap_or_error.release_value();
 
     define_direct_property("data"_utf16_fly_string, m_data, JS::Attribute::Enumerable);
 

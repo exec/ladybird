@@ -1,0 +1,3 @@
+PASS: IndexSizeError
+PASS: IndexSizeError
+PASS: 10x10

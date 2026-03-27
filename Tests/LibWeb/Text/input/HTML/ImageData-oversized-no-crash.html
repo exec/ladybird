@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<script src="../include.js"></script>
+<script>
+    test(() => {
+        // Test dimensions that pass the u32 overflow check but fail Bitmap's
+        // size_would_overflow (width >= INT16_MAX). This is the exact case from
+        // issue #8496 that previously caused a VERIFY crash in TRY_OR_THROW_OOM.
+        try {
+            new ImageData(32767, 2);
+            println("FAIL: should have thrown");
+        } catch (e) {
+            println(`PASS: ${e.name}`);
+        }
+
+        // Test dimensions that overflow u32 multiplication (rows * cols * 4).
+        try {
+            new ImageData(100000, 100000);
+            println("FAIL: should have thrown");
+        } catch (e) {
+            println(`PASS: ${e.name}`);
+        }
+
+        // Verify that reasonable sizes still work.
+        try {
+            let img = new ImageData(10, 10);
+            println(`PASS: ${img.width}x${img.height}`);
+        } catch (e) {
+            println(`FAIL: ${e.name}`);
+        }
+    });
+</script>

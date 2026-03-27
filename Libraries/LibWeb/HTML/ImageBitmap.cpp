@@ -46,7 +46,14 @@ static void serialize_bitmap(HTML::TransferDataEncoder& encoder, RefPtr<Gfx::Bit
     auto const format = decoder.decode<Gfx::BitmapFormat>();
     auto const alpha_type = decoder.decode<Gfx::AlphaType>();
     auto const data = TRY(decoder.decode_buffer(realm));
-    return TRY_OR_THROW_OOM(realm.vm(), create_bitmap_from_bitmap_data(format, alpha_type, width, height, pitch, data));
+    auto bitmap_or_error = create_bitmap_from_bitmap_data(format, alpha_type, width, height, pitch, data);
+    if (bitmap_or_error.is_error()) {
+        if (bitmap_or_error.error().code() == EOVERFLOW)
+            return WebIDL::DataCloneError::create(realm, "The serialized image size exceeds the supported range."_utf16);
+        auto& vm = realm.vm();
+        return vm.throw_completion<JS::InternalError>(vm.error_message(JS::VM::ErrorMessage::OutOfMemory));
+    }
+    return bitmap_or_error.release_value();
 }
 
 GC::Ref<ImageBitmap> ImageBitmap::create(JS::Realm& realm)
