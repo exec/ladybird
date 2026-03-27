@@ -1156,30 +1156,59 @@ struct HideCursor {
 
 - (void)otherMouseDown:(NSEvent*)event
 {
-    if (event.buttonNumber != 2)
+    auto button = Web::UIEvents::MouseButton::None;
+
+    if (event.buttonNumber == 2)
+        button = Web::UIEvents::MouseButton::Middle;
+    else if (event.buttonNumber == 3)
+        button = Web::UIEvents::MouseButton::Backward;
+    else if (event.buttonNumber == 4)
+        button = Web::UIEvents::MouseButton::Forward;
+    else
         return;
 
     [[self window] makeFirstResponder:self];
 
-    auto mouse_event = Ladybird::ns_event_to_mouse_event(Web::MouseEvent::Type::MouseDown, event, self, Web::UIEvents::MouseButton::Middle);
+    auto mouse_event = Ladybird::ns_event_to_mouse_event(Web::MouseEvent::Type::MouseDown, event, self, button);
     m_web_view_bridge->enqueue_input_event(move(mouse_event));
 }
 
 - (void)otherMouseUp:(NSEvent*)event
 {
-    if (event.buttonNumber != 2)
+    auto button = Web::UIEvents::MouseButton::None;
+
+    if (event.buttonNumber == 2)
+        button = Web::UIEvents::MouseButton::Middle;
+    else if (event.buttonNumber == 3)
+        button = Web::UIEvents::MouseButton::Backward;
+    else if (event.buttonNumber == 4)
+        button = Web::UIEvents::MouseButton::Forward;
+    else
         return;
 
-    auto mouse_event = Ladybird::ns_event_to_mouse_event(Web::MouseEvent::Type::MouseUp, event, self, Web::UIEvents::MouseButton::Middle);
+    auto mouse_event = Ladybird::ns_event_to_mouse_event(Web::MouseEvent::Type::MouseUp, event, self, button);
     m_web_view_bridge->enqueue_input_event(move(mouse_event));
+
+    if (event.buttonNumber == 3)
+        m_web_view_bridge->traverse_the_history_by_delta(-1);
+    else if (event.buttonNumber == 4)
+        m_web_view_bridge->traverse_the_history_by_delta(1);
 }
 
 - (void)otherMouseDragged:(NSEvent*)event
 {
-    if (event.buttonNumber != 2)
+    auto button = Web::UIEvents::MouseButton::None;
+
+    if (event.buttonNumber == 2)
+        button = Web::UIEvents::MouseButton::Middle;
+    else if (event.buttonNumber == 3)
+        button = Web::UIEvents::MouseButton::Backward;
+    else if (event.buttonNumber == 4)
+        button = Web::UIEvents::MouseButton::Forward;
+    else
         return;
 
-    auto mouse_event = Ladybird::ns_event_to_mouse_event(Web::MouseEvent::Type::MouseMove, event, self, Web::UIEvents::MouseButton::Middle);
+    auto mouse_event = Ladybird::ns_event_to_mouse_event(Web::MouseEvent::Type::MouseMove, event, self, button);
     m_web_view_bridge->enqueue_input_event(move(mouse_event));
 }
 
