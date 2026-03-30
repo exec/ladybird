@@ -42,7 +42,9 @@ TableGrid TableGrid::calculate_row_column_grid(Box const& box, Vector<Cell>& cel
             if (!child->display().is_table_cell())
                 continue;
 
-            auto& current_cell = as<Box>(*child);
+            auto* current_cell = as_if<Box>(*child);
+            if (!current_cell)
+                continue;
 
             // 6. Cells: While x_current is less than x_width and the slot with coordinate (x_current, y_current)
             //    already has a cell assigned to it, increase x_current by 1.
@@ -56,7 +58,7 @@ TableGrid TableGrid::calculate_row_column_grid(Box const& box, Vector<Cell>& cel
             // NB: Steps 8 and 9 are implemented in HTMLTableCellElement.col_span() and HTMLTableCellElement.row_spam() respectively.
             size_t colspan = 1;
             size_t rowspan = 1;
-            if (auto* table_cell = as_if<HTML::HTMLTableCellElement>(current_cell.dom_node())) {
+            if (auto* table_cell = as_if<HTML::HTMLTableCellElement>(current_cell->dom_node())) {
                 colspan = table_cell->col_span();
                 rowspan = table_cell->row_span();
             }
@@ -91,7 +93,7 @@ TableGrid TableGrid::calculate_row_column_grid(Box const& box, Vector<Cell>& cel
             for (size_t y = y_current; y < y_current + rowspan; y++)
                 for (size_t x = x_current; x < x_current + colspan; x++)
                     table_grid.m_occupancy_grid.set(GridPosition { x, y }, true);
-            cells.append(Cell { current_cell, x_current, y_current, colspan, rowspan });
+            cells.append(Cell { *current_cell, x_current, y_current, colspan, rowspan });
             max_cell_x = max(x_current, max_cell_x);
             max_cell_y = max(y_current, max_cell_y);
 

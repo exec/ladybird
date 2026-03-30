@@ -54,20 +54,22 @@ CSSPixels TableFormattingContext::run_caption_layout(CSS::CaptionSide phase, Ava
         if (!child->display().is_table_caption() || child->computed_values().caption_side() != phase) {
             continue;
         }
-        auto const& child_box = as<Box>(*child);
+        auto const* child_box = as_if<Box>(*child);
+        if (!child_box)
+            continue;
         // The caption boxes are principal block-level boxes that retain their own content, padding, margin, and border areas,
         // and are rendered as normal block boxes inside the table wrapper box, as described in https://www.w3.org/TR/CSS22/tables.html#model
-        if (auto caption_context = create_independent_formatting_context_if_needed(m_state, m_layout_mode, child_box)) {
+        if (auto caption_context = create_independent_formatting_context_if_needed(m_state, m_layout_mode, *child_box)) {
             caption_context->run(caption_available_space);
             // FIXME: If caption only has inline children, BlockFormattingContext doesn't resolve the vertical metrics.
             //        We need to do it manually here.
             if (auto* block_context = as_if<BlockFormattingContext>(caption_context.ptr())) {
                 auto available_width = caption_available_space.width.to_px_or_zero();
-                block_context->resolve_vertical_box_model_metrics(child_box, available_width);
-                block_context->resolve_horizontal_box_model_metrics(child_box, available_width);
+                block_context->resolve_vertical_box_model_metrics(*child_box, available_width);
+                block_context->resolve_horizontal_box_model_metrics(*child_box, available_width);
 
-                if (child_box.computed_values().width().is_auto()) {
-                    auto& caption_state = m_state.get_mutable(child_box);
+                if (child_box->computed_values().width().is_auto()) {
+                    auto& caption_state = m_state.get_mutable(*child_box);
                     caption_state.set_content_width(available_width
                         - caption_state.margin_left - caption_state.border_left - caption_state.padding_left
                         - caption_state.padding_right - caption_state.border_right - caption_state.margin_right);
@@ -76,19 +78,18 @@ CSSPixels TableFormattingContext::run_caption_layout(CSS::CaptionSide phase, Ava
                     caption_state.set_content_x(caption_state.offset.x() + caption_state.border_left + caption_state.padding_left);
                 }
 
-                if (child_box.computed_values().height().is_auto()) {
-                    auto height = child_box.has_size_containment() ? 0 : caption_context->automatic_content_height();
-                    m_state.get_mutable(child_box).set_content_height(height);
+                if (child_box->computed_values().height().is_auto()) {
+                    auto height = child_box->has_size_containment() ? 0 : caption_context->automatic_content_height();
+                    m_state.get_mutable(*child_box).set_content_height(height);
                 }
             }
         }
 
-        auto const& caption_state = m_state.get(child_box);
+        auto const& caption_state = m_state.get(*child_box);
         if (phase == CSS::CaptionSide::Top) {
             m_state.get_mutable(table_box()).set_content_y(caption_state.content_height() + caption_state.margin_box_bottom());
         } else {
-            m_state.get_mutable(child_box).set_content_y(
-                m_state.get(table_box()).margin_box_height() + caption_state.margin_box_top());
+            m_state.get_mutable(*child_box).set_content_y(m_state.get(table_box()).margin_box_height() + caption_state.margin_box_top());
         }
         caption_height += caption_state.margin_box_height();
     }
@@ -477,14 +478,15 @@ CSSPixels TableFormattingContext::compute_capmin()
         if (!child->display().is_table_caption()) {
             continue;
         }
-        VERIFY(child->is_box());
-        auto const& child_box = static_cast<Box const&>(*child);
-        auto const& computed_values = child_box.computed_values();
+        auto const* child_box = as_if<Box>(*child);
+        if (!child_box)
+            continue;
+        auto const& computed_values = child_box->computed_values();
 
-        auto margin_left = computed_values.margin().left().resolved_or_auto(child_box, width_of_table_wrapper_containing_block).to_px_or_zero(child_box);
-        auto margin_right = computed_values.margin().right().resolved_or_auto(child_box, width_of_table_wrapper_containing_block).to_px_or_zero(child_box);
-        auto padding_left = computed_values.padding().left().to_px_or_zero(child_box, width_of_table_wrapper_containing_block);
-        auto padding_right = computed_values.padding().right().to_px_or_zero(child_box, width_of_table_wrapper_containing_block);
+        auto margin_left = computed_values.margin().left().resolved_or_auto(*child_box, width_of_table_wrapper_containing_block).to_px_or_zero(*child_box);
+        auto margin_right = computed_values.margin().right().resolved_or_auto(*child_box, width_of_table_wrapper_containing_block).to_px_or_zero(*child_box);
+        auto padding_left = computed_values.padding().left().to_px_or_zero(*child_box, width_of_table_wrapper_containing_block);
+        auto padding_right = computed_values.padding().right().to_px_or_zero(*child_box, width_of_table_wrapper_containing_block);
         auto outer_size_for_inner_size = [&](CSSPixels inner_size) {
             return inner_size
                 + margin_left
@@ -495,9 +497,9 @@ CSSPixels TableFormattingContext::compute_capmin()
                 + margin_right;
         };
 
-        auto caption_min_content_contribution = outer_size_for_inner_size(calculate_min_content_width(child_box));
+        auto caption_min_content_contribution = outer_size_for_inner_size(calculate_min_content_width(*child_box));
         if (!computed_values.width().is_auto() && !computed_values.width().contains_percentage()) {
-            auto preferred_inner_width = calculate_inner_width(child_box, AvailableSize::make_definite(width_of_table_wrapper_containing_block), computed_values.width());
+            auto preferred_inner_width = calculate_inner_width(*child_box, AvailableSize::make_definite(width_of_table_wrapper_containing_block), computed_values.width());
             caption_min_content_contribution = max(caption_min_content_contribution, outer_size_for_inner_size(preferred_inner_width));
         }
 
